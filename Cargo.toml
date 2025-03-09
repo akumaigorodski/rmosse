@@ -1,0 +1,19 @@
+[package]
+name = "rmosse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rayon = "1.10.0"
+rustfft = "6.2.0"
+imageproc = "0.25.0"
+image = "0.25.5"
+
+[profile.release]
+overflow-checks = false
+incremental = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+debug = false
+lto = "thin"
