@@ -8,9 +8,10 @@ use rayon::prelude::*;
 
 const EPS: f32 = 1e-5; // Normalization 
 const RATE: f32 = 0.2; // Learning rate parameter
-const PSR_THRESHOLD: f32 = 5.7; // Detection threshold
+const THRESHOLD: f32 = 5.7; // Detection threshold
 
 type ComplexF32 = Complex<f32>;
+type FftF32 = dyn Fft<f32>;
 
 pub struct MOSSETracker {
     window_center: (f32, f32),
@@ -20,8 +21,8 @@ pub struct MOSSETracker {
     h: Vec<ComplexF32>,
     a: Vec<ComplexF32>,
     b: Vec<ComplexF32>,
-    inv_fft: Arc<dyn Fft<f32>>,
-    fft: Arc<dyn Fft<f32>>,
+    inv_fft: Arc<FftF32>,
+    fft: Arc<FftF32>,
 }
 
 impl MOSSETracker {
@@ -32,7 +33,7 @@ impl MOSSETracker {
         let mut hanning_window = vec![0f32; length];
         let mut gaussian = vec![0f32; length];
         
-        // TODO: precompute for max possible w * h, then take slices
+        // Reduce spectral leakage by trimming sharp time domain signal edges
         hanning_window.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
             let wy = (PI * yrow.0 as f32 / (h - 1) as f32).sin(/**/);
 
@@ -52,7 +53,6 @@ impl MOSSETracker {
             }
         });
 
-        
         let max_value = gaussian.iter(/**/).cloned(/**/).fold(0./0., f32::max);
         let complex2real = |current_value| Complex::new(current_value / max_value, 0f32);
         let mut complex: Vec<ComplexF32> = gaussian.par_iter(/**/).map(complex2real).collect(/**/);
