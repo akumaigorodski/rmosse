@@ -16,7 +16,7 @@ type FftF32 = dyn Fft<f32>;
 pub struct MOSSETracker {
     window_center: (f32, f32),
     window_size: (usize, usize),
-    hanning_window: Vec<f32>,
+    hann_window: Vec<f32>,
     g: Vec<ComplexF32>,
     h: Vec<ComplexF32>,
     a: Vec<ComplexF32>,
@@ -30,20 +30,20 @@ impl MOSSETracker {
         let window_center = (w as f32 / 2f32, h as f32 / 2f32);
         let length = w * h;
 
-        let mut hanning_window = vec![0f32; length];
-        let mut gaussian = vec![0f32; length];
-        
-        // Reduce spectral leakage by trimming sharp time domain signal edges
-        hanning_window.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
-            let wy = (PI * yrow.0 as f32 / (h - 1) as f32).sin(/**/);
+        // Hann window
 
-            for x in 0..w {
-                let wx = PI * x as f32 / (w - 1) as f32;
-                yrow.1[x] = wx.sin(/**/) * wy;
-            }
+        let one_minus_cos = |coef: usize, v: usize| 1.0 - (2.0 * PI * v as f32 / coef as f32).cos(/**/);
+        let rows: Vec<f32> = (0..h).map(|v| one_minus_cos(h - 1, v) * 0.5).collect(/**/);
+        let cols: Vec<f32> = (0..w).map(|v| one_minus_cos(w - 1, v) * 0.5).collect(/**/);
+
+        let mut hann_window = vec![0f32; length];
+        hann_window.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
+            (0..w).for_each(|v| yrow.1[v] = rows[yrow.0] * cols[v] * 1f32);
         });
 
-        // Calculate gaussian distribution with a peak at center
+        // Complex Gaussian
+
+        let mut gaussian = vec![0f32; length];
         gaussian.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
             let dy = (yrow.0 as f32 - window_center.1).powi(2);
 
@@ -53,7 +53,7 @@ impl MOSSETracker {
             }
         });
 
-        let max_value = gaussian.iter(/**/).cloned(/**/).fold(0./0., f32::max);
+        let max_value = gaussian.iter(/**/).cloned(/**/).fold(0f32, f32::max);
         let complex2real = |current_value| Complex::new(current_value / max_value, 0f32);
         let mut complex: Vec<ComplexF32> = gaussian.par_iter(/**/).map(complex2real).collect(/**/);
 
@@ -65,7 +65,7 @@ impl MOSSETracker {
         Self {
             window_center,
             window_size: (w, h),
-            hanning_window,
+            hann_window,
             g: complex,
             h: vec![Complex::zero(/**/); length],
             a: vec![Complex::zero(/**/); length],
@@ -77,5 +77,5 @@ impl MOSSETracker {
 }
 
 fn main() {
-    MOSSETracker::new(500, 500);
+    MOSSETracker::new(5, 5);
 }
