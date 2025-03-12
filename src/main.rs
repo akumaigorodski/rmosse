@@ -3,6 +3,7 @@ use rustfft::{num_complex::Complex, num_traits::Pow};
 use std::sync::Arc;
 use std::{f32::consts::PI, time::Instant};
 use rustfft::FftPlanner;
+use image::{imageops, GenericImageView, GrayImage, Luma};
 use rustfft::Fft;
 use rayon::prelude::*;
 
@@ -27,7 +28,6 @@ pub struct TrackerMOSSE {
 
 impl TrackerMOSSE {
     pub fn new(w: usize, h: usize) -> Self {
-        let window_center = (w as f32 / 2f32, h as f32 / 2f32);
         let length = w * h;
 
         // Hann window
@@ -44,6 +44,7 @@ impl TrackerMOSSE {
         // Complex Gaussian
 
         let mut gaussian = vec![0f32; length];
+        let window_center = (w as f32 / 2f32, h as f32 / 2f32);
         gaussian.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
             let dy = (yrow.0 as f32 - window_center.1).powi(2);
 
@@ -74,6 +75,14 @@ impl TrackerMOSSE {
             fft,
         }
     }
+}
+
+// Extract Grayscale image pixel intensities as a 1-dimensional vector of f32
+fn extract(image: &GrayImage, center: (f32, f32), width: u32, height: u32) -> Vec<f32> {
+    let x = (center.0 - width as f32 / 2f32).max(0f32) as u32;
+    let y = (center.1 - height as f32 / 2f32).max(0f32) as u32;
+    let sub = imageops::crop_imm(image, x, y, width, height);
+    sub.pixels().map(|px| px.2[0] as f32).collect(/**/)
 }
 
 fn main() {
