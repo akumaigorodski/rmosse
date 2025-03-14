@@ -32,16 +32,17 @@ impl TrackerMOSSE {
 
         // Hann window
 
-        let one_minus_value_cos = |coef: usize, v: usize| 1.0 - (2.0 * PI * v as f32 / coef as f32).cos(/**/);
-        let cols: Vec<f32> = (0..w).map(|v| one_minus_value_cos(w - 1, v) / 2f32).collect(/**/);
+        let value_cos = |coef: usize, v: usize| (2.0 * PI * v as f32 / coef as f32).cos(/**/);
+        let cols: Vec<f32> = (0..w).map(|v| 1.0 - value_cos(w - 1, v) / 2f32).collect(/**/);
 
         let mut hann_window = vec![0f32; length];
         hann_window.par_chunks_mut(w).enumerate(/**/).for_each(|yrow| {
-            let row = one_minus_value_cos(h - 1, yrow.0) / 2f32;
+            let row = 1.0 - value_cos(h - 1, yrow.0) / 2f32;
             (0..w).for_each(|v| yrow.1[v] = cols[v] * row);
         });
 
         // Complex Gaussian
+        // Peaks at bbox center
 
         let mut gaussian = vec![0f32; length];
         let window_center = (w as f32 / 2f32, h as f32 / 2f32);
@@ -75,16 +76,27 @@ impl TrackerMOSSE {
             fft,
         }
     }
+
+    fn normalize_inplace(&self, patch: &mut [f32], bias: f32) {
+        patch.par_iter_mut(/**/).for_each(|val| *val = (*val + 1f32).ln(/**/));
+        let mean: f32 = patch.par_iter(/**/).sum::<f32>(/**/) / patch.len(/**/) as f32;
+        let var: f32 = patch.par_iter(/**/).map(|val| (*val - mean).powi(2)).sum(/**/);
+        let std: f32 = (var / patch.len(/**/) as f32).sqrt(/**/) + bias;
+
+        patch.par_iter_mut(/**/).enumerate(/**/).for_each(|nv| {
+            *nv.1 = (*nv.1 - mean) / std * self.hann_window[nv.0];
+        });
+    }
 }
 
-// Extract Grayscale image pixel intensities as a 1-dimensional vector of f32
+// Extract Grayscale patch pixel intensities as a 1-dimensional vector of f32
 fn extract(image: &GrayImage, center: (f32, f32), width: u32, height: u32) -> Vec<f32> {
     let x = (center.0 - width as f32 / 2f32).max(0f32) as u32;
     let y = (center.1 - height as f32 / 2f32).max(0f32) as u32;
     let sub = imageops::crop_imm(image, x, y, width, height);
-    sub.pixels().map(|px| px.2[0] as f32).collect(/**/)
+    sub.pixels(/**/).map(|px| px.2[0] as f32).collect(/**/)
 }
 
 fn main() {
-    TrackerMOSSE::new(5, 5);
+    TrackerMOSSE::new(5, 9);
 }
