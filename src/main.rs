@@ -27,10 +27,11 @@ pub struct TrackerMOSSE {
 }
 
 impl TrackerMOSSE {
-    pub fn new(w: usize, h: usize) -> Self {
+    pub fn new(planner: &mut FftPlanner<f32>, w: usize, h: usize) -> Self {
         let length = w * h;
 
-        // Hann window
+        // Hann window to dampen signal edges
+        // Combats Heisenberg uncertainty
 
         let value_cos = |coef: usize, v: usize| (2.0 * PI * v as f32 / coef as f32).cos(/**/);
         let cols: Vec<f32> = (0..w).map(|v| 1.0 - value_cos(w - 1, v) / 2f32).collect(/**/);
@@ -42,7 +43,8 @@ impl TrackerMOSSE {
         });
 
         // Complex Gaussian
-        // Peaks at bbox center
+        // Peaks at bounding box center
+        // Represents an ideal response
 
         let mut gaussian = vec![0f32; length];
         let window_center = (w as f32 / 2f32, h as f32 / 2f32);
@@ -59,7 +61,7 @@ impl TrackerMOSSE {
         let real2complex = |current_value| Complex::new(current_value / max_value, 0f32);
         let mut complex: Vec<ComplexF32> = gaussian.par_iter(/**/).map(real2complex).collect(/**/);
 
-        let mut planner = FftPlanner::new(/**/);
+        
         let fft = planner.plan_fft_forward(length);
         let inv_fft = planner.plan_fft_inverse(length);
         fft.process(&mut complex);
@@ -98,5 +100,7 @@ fn extract(image: &GrayImage, center: (f32, f32), width: u32, height: u32) -> Ve
 }
 
 fn main() {
-    TrackerMOSSE::new(5, 9);
+    let mut planner = FftPlanner::new(/**/);
+    TrackerMOSSE::new(&mut planner, 640, 640);
+    TrackerMOSSE::new(&mut planner, 640, 640);
 }
