@@ -15,19 +15,19 @@ type ComplexF32 = Complex<f32>;
 type FftF32 = dyn Fft<f32>;
 
 pub struct TrackerMOSSE {
-    window_center: (f32, f32),
     window_size: (usize, usize),
     hann_window: Vec<f32>,
     g: Vec<ComplexF32>,
     h: Vec<ComplexF32>,
     a: Vec<ComplexF32>,
     b: Vec<ComplexF32>,
+    fwd_fft: Arc<FftF32>,
     inv_fft: Arc<FftF32>,
-    fft: Arc<FftF32>,
 }
 
 impl TrackerMOSSE {
     pub fn new(planner: &mut FftPlanner<f32>, w: usize, h: usize) -> Self {
+        let window_size = (w, h);
         let length = w * h;
 
         // Hann window to dampen signal edges
@@ -58,24 +58,22 @@ impl TrackerMOSSE {
         });
 
         let max_value = gaussian.iter(/**/).cloned(/**/).fold(0f32, f32::max);
-        let real2complex = |current_value| Complex::new(current_value / max_value, 0f32);
+        let real2complex = |real_value_part| Complex::new(real_value_part / max_value, 0f32);
         let mut complex: Vec<ComplexF32> = gaussian.par_iter(/**/).map(real2complex).collect(/**/);
 
-        
-        let fft = planner.plan_fft_forward(length);
+        let fwd_fft = planner.plan_fft_forward(length);
         let inv_fft = planner.plan_fft_inverse(length);
-        fft.process(&mut complex);
+        fwd_fft.process(&mut complex);
 
         Self {
-            window_center,
-            window_size: (w, h),
+            window_size,
             hann_window,
             g: complex,
             h: vec![Complex::zero(/**/); length],
             a: vec![Complex::zero(/**/); length],
             b: vec![Complex::zero(/**/); length],
+            fwd_fft,
             inv_fft,
-            fft,
         }
     }
 
@@ -101,6 +99,8 @@ fn extract(image: &GrayImage, center: (f32, f32), width: u32, height: u32) -> Ve
 
 fn main() {
     let mut planner = FftPlanner::new(/**/);
+    let time = Instant::now();
     TrackerMOSSE::new(&mut planner, 640, 640);
     TrackerMOSSE::new(&mut planner, 640, 640);
+    println!("{:?}", time.elapsed());
 }
